@@ -1,0 +1,54 @@
+stages:
+  # - build
+  - build_tags
+  - deploy
+
+# build:
+#   tags:
+#     - gitlab
+#   stage: build
+#   image:
+#     name: gcr.io/kaniko-project/executor:debug
+#     entrypoint: [""]
+#   script:
+#     - mkdir -p /kaniko/.docker
+#     - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+
+#     - >-
+#       /kaniko/executor
+#       --context "${CI_PROJECT_DIR}"
+#       --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
+#       --destination "${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}"
+
+build_tags:
+  tags:
+    - gitlab
+  stage: build_tags
+  only:
+    - tags
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+
+    - >-
+      /kaniko/executor
+      --context "${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
+      --destination "${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_TAG}"
+    
+deploy:
+  tags:
+    - gitlab
+  only:
+    - tags
+  stage: deploy
+  image:
+    name: bitnami/kubectl:latest
+    entrypoint: ['']
+  script:
+    - kubectl delete -f deploy-app.yaml
+    - sed -i "s/__version__/${CI_COMMIT_TAG}/g" deploy-app.yaml
+    - kubectl apply -f deploy-app.yaml
